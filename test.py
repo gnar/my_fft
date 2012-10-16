@@ -6,7 +6,7 @@ from conv import *
 
 def rnd_data(n=64):
   import random
-  return list(random.uniform(-100,+100) for _ in range(64))
+  return list(random.uniform(-100,+100) for _ in range(n))
 
 class conv_test(unittest.TestCase):
   def setUp(self):
