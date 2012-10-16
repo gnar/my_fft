@@ -6,7 +6,7 @@ def conv_simple(a, b):
 
   c = [0] * n
   for i in range(n):
-    c[i] = sum(a[j] * b[(n+i-j)%n] for j in range(n))
+    c[i] = sum(a[j] * b[(i-j)%n] for j in range(n))
   return c
 
 def conv(a, b):
