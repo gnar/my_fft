@@ -26,7 +26,7 @@ def fft_r(x):
       y[i+n/2] = y_e[i] - y_o[i] * omega(n, -i)
     return y
 
-def fft(x, sign=+1):
+def fft(x, sign=-1):
   n = len(x)
   x = bit_reverse(x)
 
@@ -48,6 +48,7 @@ def fft(x, sign=+1):
   return x
   #return list(x[i] / sqrt(n) for i in range(n))
 
-x = list(range(4))
-print dft(x)
-print fft(x)
+def ifft(x):
+  return fft(x, +1)
+
+
