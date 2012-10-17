@@ -50,5 +50,3 @@ def fft(x, sign=-1):
 
 def ifft(x):
   return fft(x, +1)
-
-

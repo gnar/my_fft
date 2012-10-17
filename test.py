@@ -2,6 +2,7 @@
 import unittest
 
 from fft import *
+from fftn import fft2
 from conv import *
 
 def rnd_data(n=64):
@@ -40,6 +41,18 @@ class fft_test(unittest.TestCase):
   def test_dft_0(self):
      y = dft(fft_test.x_ref)
      for i in range(8): self.assertAlmostEqual(y[i], fft_test.y_ref[i], 4)
+
+  a_ref = [[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]
+  b_ref = [[ 136.00          , -008.00 + 008.00j, -008.00,           -008.00 - 008.00j],
+           [-032.00 + 032.00j,       0          ,       0,                 0          ],
+           [-032.00          ,       0          ,       0,                 0          ],
+           [-032.00 - 032.00j,       0          ,       0,                 0          ]]
+
+  def test_fft2(self):
+    my_b = fft2(fft_test.a_ref)
+    for x in range(4):
+      for y in range(4): 
+        self.assertAlmostEqual(my_b[y][x], fft_test.b_ref[y][x], 7)
 
 if __name__ == "__main__":
   unittest.main()
