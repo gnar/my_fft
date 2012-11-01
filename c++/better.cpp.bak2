@@ -1,0 +1,217 @@
+#include <complex>
+#include <math.h>
+#include <algorithm>
+#include <alloca.h>
+#include "tick.h"
+
+#include <iostream>
+using std::cout;
+using std::cin;
+using std::endl;
+
+typedef std::complex<double> complex;
+
+const complex I = complex(0,1);
+
+void dft(complex *in, complex *out, int N)
+{
+	for (int i=0; i<N; ++i) {
+		complex sum(0,0);
+		for (int j=0; j<N; ++j) {
+			double v = -j*M_PI*2*i/N;
+			sum += in[j] * exp(-I*v);
+		}
+		out[i] = sum;
+	}
+}
+
+void bit_reverse(const long n, complex * const x)
+{
+	int j=0;
+	for (int i=0; i<n-1; ++i) { // count i up in normal order
+		if (j > i) {
+			std::swap(x[j], x[i]);
+		}
+
+		// count j up in bit-reversed order
+		int k = n >> 1;
+		while (k <= j) {
+			j -= k;
+			k >>= 1;
+		}
+		j += k;
+	}
+}
+
+void myfft0(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	int fft_num = N/2;
+	int pos = 0;
+	while (fft_len <= N) {
+		for (int m=0; m<fft_len/2; ++m) {
+			complex W_k = exp(I*complex(2.0*M_PI*double(m)/double(fft_len)));
+			for (int i=m; i<N; i+=fft_len) {
+				int j=i+fft_len/2;
+				complex a =       x[i];
+				complex b = W_k * x[j];
+				x[i] = a + b;
+				x[j] = a - b;
+			}
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+	}
+}
+
+complex foo[65536];
+
+void myfft_init(const long N)
+{
+	// find out M with 2^M==N
+	int M = 0;
+	while ((1<<M) < N) ++M;
+
+	int pos = 0;
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	while (fft_len <= N) {
+		foo[pos++] = exp(I*complex(2.0*M_PI/double(fft_len)));
+		fft_len <<= 1;
+	}
+
+	cout << "foo len: " << pos << endl;
+}
+
+void fft_sub2(int fft_num, int fft_len /*2*/, int fft_m /*1*/, int N, complex *x)
+{
+	const complex r = foo[fft_m-1];
+
+	complex W_k(1.0);
+	for (int k=0; k<1; ++k) {
+		for (int i=k; i<N; i+=2) {
+			const int j=i+1;
+			const complex a =       x[i];
+			const complex b = W_k * x[j];
+			x[i] = a + b;
+			x[j] = a - b;
+		}
+		W_k *= r;
+		//cout << "k=" << k << ", " << W_k << endl;
+	}
+}
+
+void fft_sub(int fft_num, int fft_len, int fft_m, int N, complex *x)
+{
+	const complex r = foo[fft_m-1];
+
+	complex W_k(1.0);
+	for (int k=0; k<fft_len/2; ++k) {
+		for (int i=k; i<N; i+=fft_len) {
+			const int j=i+fft_len/2;
+			const complex a =       x[i];
+			const complex b = W_k * x[j];
+			x[i] = a + b;
+			x[j] = a - b;
+		}
+		W_k *= r;
+		//cout << "k=" << k << ", " << W_k << endl;
+	}
+}
+
+void myfft(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_m   = 1;
+	int fft_len = 2;
+	int fft_num = N/2;
+	while (fft_len <= N) {
+		switch (fft_m) {
+			case 1:
+				fft_sub2(fft_num, fft_len, fft_m, N, x);
+				break;
+			default:
+				fft_sub(fft_num, fft_len, fft_m, N, x);
+				break;
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+		fft_m += 1;
+	}
+}
+
+void myfft2(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	int fft_num = N/2;
+	while (fft_len <= N) {
+		complex W_k(1.0); // k=0 -> W_k=1+0i
+		complex r = exp(I*complex(2.0*M_PI/double(fft_len)));
+		for (int m=0; m<fft_len/2; ++m) {
+			for (int i=m; i<N; i+=fft_len) {
+				int j=i+fft_len/2;
+				complex b = W_k * x[j];
+				x[i] += b;
+				x[j] = x[i] - 2.0*b;
+			}
+			W_k *= r;
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	const int TIMES = 1;
+	const long M = 4;
+	const long N = 1<<M;
+
+	cout << N << " points fft" << endl;
+
+	complex *in = new complex [N];
+	complex *out = new complex [N];
+
+	srand(time(0));
+	for (int i=0; i<N; ++i) in[i] = complex(rand()/double(RAND_MAX),rand()/double(RAND_MAX));
+
+	dft(in, out, N);
+	myfft_init(N);
+	tic();
+	myfft(N, in);
+	toc(true);
+
+	/*tic();
+	FFT(1, M, in);
+	toc(true);*/
+#if 1
+	for (int i=0; i<N; ++i) {
+		cout << out[i] << endl;
+	}
+	cout << endl;
+	for (int i=0; i<N; ++i) {
+		cout << in[i] << endl;
+	}
+	cout << endl;
+#endif
+}
+
+

@@ -1,0 +1,295 @@
+#include <complex>
+#include <math.h>
+#include <algorithm>
+#include <alloca.h>
+#include "tick.h"
+
+#include <iostream>
+using std::cout;
+using std::cin;
+using std::endl;
+
+typedef std::complex<double> complex;
+
+const complex I = complex(0,1);
+
+void dft(complex *in, complex *out, int N)
+{
+	for (int i=0; i<N; ++i) {
+		complex sum(0,0);
+		for (int j=0; j<N; ++j) {
+			double v = -j*M_PI*2*i/N;
+			sum += in[j] * exp(-I*v);
+		}
+		out[i] = sum;
+	}
+}
+
+
+void fft(complex *in, complex *out, int n, int stride = 1)
+{
+	if (n == 1) {
+		*out = *in;
+		return;
+	}
+
+	complex *tmp1 = (complex*)alloca(n/2 * sizeof(complex));
+	complex *tmp2 = (complex*)alloca(n/2 * sizeof(complex));
+
+	fft(in+     0, tmp1, n/2, stride*2);
+	fft(in+stride, tmp2, n/2, stride*2);
+
+	for (int k=0; k<n/2; ++k) {
+		complex a = tmp2[k];
+		complex b = tmp1[k] * exp(-I*double(2*M_PI*k/n));
+		out[k      ] = a + b;
+		out[(k+n/2)] = a - b;
+	}
+}
+
+/*
+ * Modification of Paul Bourkes FFT code by Peter Cusack 
+ * to utilise the Microsoft complex type.
+ *
+ * This computes an in-place complex-to-complex FFT 
+ * x and y are the real and imaginary arrays of 2^m points.
+ * dir =  1 gives forward transform
+ * dir = -1 gives reverse transform 
+ */
+void FFT(int dir, long m, complex x[])
+{
+	long i, i1, i2, j, k, l, l1, l2, n;
+	complex tx, t1, u, c;
+
+	/*Calculate the number of points */
+	n = 1;
+	for(i = 0; i < m; i++) 
+		n <<= 1;   
+
+	/* Do the bit reversal */
+	i2 = n >> 1;
+	j = 0;
+	for (i=0; i<n-1; ++i) {
+		if (i < j)
+			swap(x[i], x[j]);
+		k = i2;
+		while (k <= j) {
+			j -= k;
+			k >>= 1;
+		}
+		j += k;
+	}
+
+	/* Compute the FFT */
+	l2 = 1;
+	c = complex(-1.0,0.0);
+	for (l=0; l<m; ++l) {
+		// for each m:
+		l1 = l2; l2 <<= 1;
+
+		u = complex(1.0,0.0);
+		for (j=0; j<l1; ++j) {
+			for (i=j; i<n; i+=l2) {
+				i1 = i + l1;
+				t1 = u * x[i1];
+				x[i1] = x[i] - t1; 
+				x[i] += t1;
+			}
+			u = u * c;
+		}
+
+		c = complex(
+			-sqrt((1.0 - c.real()) / 2.0),
+			 sqrt((1.0 + c.real()) / 2.0) 
+		);
+	}
+}
+
+void fft_initialize()
+{
+}
+
+void bit_reverse(const long n, complex * const x)
+{
+	int j=0;
+	for (int i=0; i<n-1; ++i) { // count i up in normal order
+		if (j > i) {
+			std::swap(x[j], x[i]);
+		}
+
+		// count j up in bit-reversed order
+		int k = n >> 1;
+		while (k <= j) {
+			j -= k;
+			k >>= 1;
+		}
+		j += k;
+	}
+}
+
+void myfft0(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	int fft_num = N/2;
+	int pos = 0;
+	while (fft_len <= N) {
+		for (int m=0; m<fft_len/2; ++m) {
+			complex W_k = exp(I*complex(2.0*M_PI*double(m)/double(fft_len)));
+			for (int i=m; i<N; i+=fft_len) {
+				int j=i+fft_len/2;
+				complex a =       x[i];
+				complex b = W_k * x[j];
+				x[i] = a + b;
+				x[j] = a - b;
+			}
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+	}
+}
+
+complex foo[65536];
+
+void myfft_init(const long N)
+{
+	// find out M with 2^M==N
+	int M = 0;
+	while ((1<<M) < N) ++M;
+
+	int pos = 0;
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	while (fft_len <= N) {
+		foo[pos++] = exp(I*complex(2.0*M_PI/double(fft_len)));
+		fft_len <<= 1;
+	}
+
+	cout << "foo len: " << pos << endl;
+}
+
+void myfft(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	int fft_num = N/2;
+	int pos = 0;
+	while (fft_len <= N) {
+		complex W_k(1.0);
+		complex r = foo[pos++];
+		for (int m=0; m<fft_len/2; ++m) {
+			for (int i=m; i<N; i+=fft_len) {
+				int j=i+fft_len/2;
+				complex a =       x[i];
+				complex b = W_k * x[j];
+				x[i] = a + b;
+				x[j] = a - b;
+			}
+			W_k *= r;
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+	}
+}
+
+void myfft2(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	int fft_num = N/2;
+	while (fft_len <= N) {
+		complex W_k(1.0); // k=0 -> W_k=1+0i
+		complex r = exp(I*complex(2.0*M_PI/double(fft_len)));
+		for (int m=0; m<fft_len/2; ++m) {
+			for (int i=m; i<N; i+=fft_len) {
+				int j=i+fft_len/2;
+				complex b = W_k * x[j];
+				x[i] += b;
+				x[j] = x[i] - 2.0*b;
+			}
+			W_k *= r;
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+	}
+}
+
+void myfft3(const long N, complex *x)
+{
+	// shuffle x[] to bit-reversed order
+	bit_reverse(N, x);
+
+	// do log2(n) iterations
+	int fft_len = 2;
+	int fft_num = N/2;
+	while (fft_len <= N) {
+		complex W_k(1.0); // k=0 -> W_k=1+0i
+		complex r = exp(I*complex(2.0*M_PI/double(fft_len)));
+		for (int m=0; m<fft_len/2; ++m) {
+			for (int i=m; i<N; i+=fft_len) {
+				int j=i+fft_len/2;
+				complex b = W_k * x[j];
+				x[i] += b;
+				x[j] = x[i] - 2.0*b;
+			}
+			W_k *= r;
+		}
+
+		// next outer iteration
+		fft_len <<= 1;
+		fft_num >>= 1;
+	}
+}
+
+int main(int argc, char *argv[])
+{
+	const int TIMES = 1;
+	const long M = 16;
+	const long N = 1<<M;
+
+	cout << N << " points fft" << endl;
+
+	complex *in = new complex [N];
+	complex *out = new complex [N];
+
+	srand(time(0));
+	for (int i=0; i<N; ++i) in[i] = complex(rand()/double(RAND_MAX),rand()/double(RAND_MAX));
+
+	//dft(in, out, N);
+	myfft_init(N);
+	tic();
+	myfft(N, in);
+	toc(true);
+
+	/*tic();
+	FFT(1, M, in);
+	toc(true);*/
+#if 0
+	for (int i=0; i<N; ++i) {
+		cout << out[i] << endl;
+	}
+	cout << endl;
+	for (int i=0; i<N; ++i) {
+		cout << in[i] << endl;
+	}
+	cout << endl;
+#endif
+}
+
+
